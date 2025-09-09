@@ -34,6 +34,7 @@ name = "cpu6502"
 version = "0.1.0"
 dependencies = [
  "crossterm",
+ "mos6502",
 ]
 
 [[package]]
@@ -147,6 +148,16 @@ dependencies = [
  "log",
  "wasi",
  "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "mos6502"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b22d4855e5aa4c081a243ce808381897a3e6aa7ffa3cb175fa95caac018a2cc"
+dependencies = [
+ "bitflags",
+ "log",
 ]
 
 [[package]]

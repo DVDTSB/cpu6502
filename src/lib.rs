@@ -69,16 +69,17 @@ impl CPU6502 {
         (hi << 8) | lo
     }
 
-    fn push(&mut self, val: u8) {
-        let addr = 0x0100 | self.sp as u16;
-        self.write_byte(addr, val);
-        self.sp = self.sp.wrapping_sub(1);
+    fn pop(&mut self) -> u8 {
+        self.sp = self.sp.wrapping_add(1); // then increment
+        let addr = 0x0100 | self.sp as u16; // read current SP
+        let val = self.read_byte(addr); // read memory
+        val
     }
 
-    fn pop(&mut self) -> u8 {
-        self.sp = self.sp.wrapping_add(1);
-        let addr = 0x0100 | self.sp as u16;
-        self.read_byte(addr)
+    fn push(&mut self, val: u8) {
+        let addr = 0x0100 | self.sp as u16; // write current SP
+        self.write_byte(addr, val);
+        self.sp = self.sp.wrapping_sub(1); // then decrement
     }
 
     fn fetch(&mut self) -> u8 {
@@ -148,6 +149,7 @@ impl CPU6502 {
                 let hi = self.read_byte(zp.wrapping_add(1) & 0xFF) as u16;
                 (hi << 8) | lo
             }
+
             AddrMode::IndirectY => {
                 let zp = self.read_byte(self.pc) as u16;
                 self.pc = self.pc.wrapping_add(1);
@@ -207,7 +209,7 @@ impl CPU6502 {
         //println!("{:#02x}", self.pc);
 
         let op = self.fetch();
-        //println!("{op:#02X}");
+        println!("{op:#02X}");
         self.execute_op(op);
     }
 
@@ -389,21 +391,32 @@ impl CPU6502 {
     // special
 
     fn brk(&mut self) {
-        panic!("break!");
+        let pc = self.pc.wrapping_sub(1);
+        let lo = (pc & 0xFF) as u8;
+        let hi = (pc >> 8) as u8;
+        self.push(hi);
+        self.push(lo);
+        self.push(self.flags);
+
+        self.set_flag(Flag::InterruptDisable, true);
+
+        let pcl = self.read_byte(0xFFFE) as u16;
+        let pch = self.read_byte(0xFFFF) as u16;
+        self.pc = (pch << 8) | pcl;
     }
 
     fn jsr(&mut self, addr: u16) {
         let return_addr = self.pc.wrapping_sub(1);
         let lo = (return_addr & 0xFF) as u8;
         let hi = (return_addr >> 8) as u8;
-        self.push(lo); // LOW byte first
-        self.push(hi); // HIGH byte second
+        self.push(hi);
+        self.push(lo);
         self.pc = addr;
     }
 
     fn rts(&mut self) {
-        let hi = self.pop(); // HIGH byte first
-        let lo = self.pop(); // LOW byte second
+        let lo = self.pop();
+        let hi = self.pop();
         self.pc = ((hi as u16) << 8 | lo as u16).wrapping_add(1);
     }
 
@@ -415,21 +428,20 @@ impl CPU6502 {
     }
 
     fn branch(&mut self, cond: bool) {
-        let offset = self.read_byte(self.pc) as i8; // read signed offset
-        self.pc = self.pc.wrapping_add(1); // move past operand
+        let offset = self.read_byte(self.pc) as i8;
+        self.pc = self.pc.wrapping_add(1);
         if cond {
-            // cast PC to i32 to handle negative offset safely
             self.pc = ((self.pc as i32) + (offset as i32)) as u16;
         }
     }
     // sb1
     fn php(&mut self) {
-        let flags = self.flags | Flag::Break as u8 | Flag::Unused as u8;
+        let flags = self.flags | 0x30;
         self.push(flags);
     }
 
     fn plp(&mut self) {
-        self.flags = self.pop() & 0xEF | Flag::Unused as u8;
+        self.flags = self.pop();
     }
 
     fn pha(&mut self) {
@@ -505,6 +517,7 @@ impl CPU6502 {
 
     fn cmp(&mut self, addr: u16) {
         let m = self.read_byte(addr);
+        println!("meow!");
         self.compare(self.acc, m);
     }
 
